@@ -1,7 +1,7 @@
 """Stage 6 against a running Temporal dev server (skipped if none on localhost:7233).
 
 Worker 1 SIGKILLs itself right after the charge. Worker 2 starts afterwards, picks the run up,
-re-runs the charge with the same key (bank: duplicate) and finishes. Nobody restarts worker 1.
+re-runs the charge with the same key (the bank says "not charged again") and finishes. Nobody restarts worker 1.
 """
 
 import os
@@ -43,7 +43,7 @@ def test_worker_killed_after_charge_other_worker_finishes_paying_once(shop, tmp_
         w2.terminate()
         w2_out, _ = w2.communicate(timeout=10)
     assert starter.returncode == 0, out
-    assert "duplicate" in w2_out, w2_out
+    assert "not charged again" in w2_out, w2_out
     assert "LLM call" not in w2_out  # read_order came back from Temporal's history
     s = shop("/stats")
     assert (s["payments"], s["sms"], s["kitchen"]) == (1, 1, 1)

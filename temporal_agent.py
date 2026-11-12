@@ -42,7 +42,7 @@ async def read_order(text: str) -> dict:
 async def charge_upi(order_id: str, amount: int, key: str) -> str:
     say(f"[{os.environ.get('WORKER_NAME', 'worker')}] about to charge ₹{amount} · key {key}")
     r = shop("/pay", {"order_id": order_id, "amount": amount, "key": key})
-    say(f"charge_upi: ₹{amount} -> {r['receipt']}" + ("  (bank: duplicate, not charged again)" if r["duplicate"] else ""))
+    say(f"charge_upi: ₹{amount} -> {r['receipt']}" + ("  · bank: same key, not charged again" if r["duplicate"] else ""))
     crash_point("after_pay")
     pause = int(os.environ.get("DEMO_PAUSE", "0"))
     if pause:
