@@ -42,7 +42,7 @@ def run(shop, tmp_path):
         e = {**os.environ, "SHOP_URL": shop.url, "MOCK_LLM": "1", "CHECKPOINT_DIR": str(tmp_path), "DEMO_PAUSE": "0"}
         e.pop("CRASH_AT", None)
         e.update({k: str(v) for k, v in env.items()})
-        p = subprocess.run([sys.executable, script, *args], cwd=ROOT, env=e, capture_output=True, text=True, timeout=60)
+        p = subprocess.run([sys.executable, script, *args], cwd=ROOT, env=e, capture_output=True, text=True, encoding="utf-8", timeout=60)
         return p.returncode, p.stdout + p.stderr
 
     return _run

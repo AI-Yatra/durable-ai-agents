@@ -23,12 +23,13 @@ from datetime import timedelta
 from temporalio import activity, workflow
 from temporalio.client import Client
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.worker import Worker
 
 with workflow.unsafe.imports_passed_through():
     from common import ORDER, PRICE, crash_point, llm_read_order, say, shop
 
-TEMPORAL = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+TEMPORAL = os.environ.get("TEMPORAL_ADDRESS", "127.0.0.1:7233")
 QUEUE = os.environ.get("TASK_QUEUE", "chai")
 
 
@@ -88,20 +89,32 @@ class ChaiOrder:
 
 
 # --- entry points ----------------------------------------------------------------
+async def connect() -> Client:
+    try:
+        return await Client.connect(TEMPORAL)
+    except RuntimeError as e:
+        sys.exit(f"can't reach the Temporal server at {TEMPORAL}. Is it running? (docker compose --profile temporal up -d temporal)\n  {e}")
+
+
 async def worker(name: str):
-    client = await Client.connect(TEMPORAL)
+    client = await connect()
     os.environ["WORKER_NAME"] = name  # so the shop dashboard shows which worker charged
     say(f"{name} polling task queue '{QUEUE}' on {TEMPORAL}")
     w = Worker(client, task_queue=QUEUE, workflows=[ChaiOrder], activities=[read_order, charge_upi, send_receipt, send_to_kitchen])
-    loop = asyncio.get_running_loop()
-    loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.ensure_future(w.shutdown()))
+    try:  # `docker stop` -> finish cleanly. (Windows' event loop has no signal handlers; skip it there.)
+        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, lambda: asyncio.ensure_future(w.shutdown()))
+    except NotImplementedError:
+        pass
     await w.run()
 
 
 async def start(order_id: str):
-    client = await Client.connect(TEMPORAL)
+    client = await connect()
     say(f"placing {order_id}: {ORDER!r}")
-    result = await client.execute_workflow(ChaiOrder.run, ORDER, id=order_id, task_queue=QUEUE)
+    try:
+        result = await client.execute_workflow(ChaiOrder.run, ORDER, id=order_id, task_queue=QUEUE)
+    except WorkflowAlreadyStartedError:
+        sys.exit(f"{order_id} is already running. Watch it at http://localhost:8233, or start a new one: start order-2")
     say(f"done · {result} · payments made {shop('/stats')['payments']}")
 
 

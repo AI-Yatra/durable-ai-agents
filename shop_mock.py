@@ -22,7 +22,9 @@ Demo
 
 import json
 import os
+import socket
 import sqlite3
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -266,14 +268,27 @@ def make_server(port: int, db_path: str) -> ThreadingHTTPServer:
                         return self.send(200, {"ok": True})
             self.send(404, {"error": "not found"})
 
-    return ThreadingHTTPServer(("0.0.0.0", port), H)
+    return ThreadingHTTPServer((os.environ.get("HOST", "127.0.0.1"), port), H)
 
 
 if __name__ == "__main__":
+    for _stream in (sys.stdout, sys.stderr):  # ₹ on a Windows console
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     port = int(os.environ.get("PORT", "8099"))
     db = os.environ.get("SHOP_DB", "shop.db")
+    # Check the port before touching the ledger: a second shop must not wipe the running one's DB.
+    try:
+        with socket.socket() as probe:
+            probe.bind((os.environ.get("HOST", "127.0.0.1"), port))
+    except OSError as e:  # in use (98 / 48 / WinError 10048) or reserved by Windows (WinError 10013)
+        sys.exit(f"[shop] can't use port {port}: {e}\n"
+                 f"  Is another shop already running? Close it, or pick another port: PORT=8199 here, SHOP_URL=http://127.0.0.1:8199 for the agent.")
     if os.environ.get("KEEP_DB") != "1" and os.path.exists(db):
-        os.remove(db)  # every shop start is a clean slate; KEEP_DB=1 keeps the old ledger
+        try:
+            os.remove(db)  # every shop start is a clean slate; KEEP_DB=1 keeps the old ledger
+        except PermissionError:  # Windows: another process still has it open
+            sys.exit(f"[shop] {db} is in use by another process. Close the other shop first.")
     srv = make_server(port, db)
     print(f"[shop] dashboard on http://localhost:{port}", flush=True)
     srv.serve_forever()

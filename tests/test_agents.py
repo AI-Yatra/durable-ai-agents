@@ -1,5 +1,9 @@
 """Both agents under a real SIGKILL (CRASH_AT=after_pay), then a restart."""
 
+import os
+
+KILLED = 9 if os.name == "nt" else -9  # Windows: TerminateProcess exit code
+
 
 # --- the normal agent -------------------------------------------------------------
 def test_normal_runs_clean(shop, run):
@@ -11,7 +15,7 @@ def test_normal_runs_clean(shop, run):
 
 def test_normal_kill_after_charge_pays_twice(shop, run):
     rc, _ = run("normal_agent.py", CRASH_AT="after_pay")
-    assert rc == -9
+    assert rc == KILLED
     rc, out = run("normal_agent.py")
     assert rc == 0, out
     assert shop("/stats")["payments"] == 2
@@ -27,7 +31,7 @@ def test_durable_runs_clean(shop, run):
 
 def test_durable_kill_after_charge_pays_once(shop, run):
     rc, _ = run("durable_agent.py", CRASH_AT="after_pay")
-    assert rc == -9
+    assert rc == KILLED
     rc, out = run("durable_agent.py")
     assert rc == 0, out
     assert "resuming at ['charge_upi']" in out

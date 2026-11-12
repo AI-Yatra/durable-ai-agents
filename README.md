@@ -43,7 +43,7 @@ read_order ──> charge_upi(₹80) ──> send_receipt ──> send_to_kitche
 
 ## Requirements
 
-- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+- [uv](https://docs.astral.sh/uv/) (it installs Python 3.12+ for you)
 - Docker, for the container runs and for the Temporal server. No Temporal account is needed.
 - An LLM is optional. `MOCK_LLM=1` fakes it. For a real one, set `LLM_API_KEY`. Any OpenAI-compatible endpoint works; the default is [NVIDIA's free one](https://build.nvidia.com).
 
@@ -52,6 +52,8 @@ git clone https://github.com/been-there-done-that/durable-ai-agents
 cd durable-ai-agents
 uv sync
 ```
+
+The commands below are for **macOS / Linux** (bash, zsh, or WSL). On **Windows**, use PowerShell; see [On Windows](#on-windows) for the differences.
 
 ## 1 · The normal agent pays twice
 
@@ -89,7 +91,7 @@ Progress is saved in `durable.db`. `ORDER_ID=order-2` starts a new order; `rm du
 ### Waiting for the bank, the customer and an admin
 
 ```bash
-curl -XPOST localhost:8099/mode -d '{"pending": true}'      # the bank leaves payments pending
+curl -X POST http://127.0.0.1:8099/mode -d '{"pending": true}'   # the bank leaves payments pending
 MOCK_LLM=1 uv run python durable_agent.py                    # ⏸ waiting for the bank (exits; the wait is saved)
 MOCK_LLM=1 uv run python durable_agent.py                    # restart: still waiting, no new charge
 uv run python durable_agent.py stock 0                       # the chai runs out meanwhile
@@ -143,13 +145,43 @@ docker kill worker-1                                         # or worker-2
 
 The durable agent's checkpoints live on the `checkpoints` volume, so they outlive the container. To clear them: `docker compose run --rm chai-agent rm -f /data/durable.db`.
 
+## On Windows
+
+Everything runs natively on Windows. Use PowerShell (in Windows Terminal), not `cmd.exe`. Three things change:
+
+| | macOS / Linux | Windows (PowerShell) |
+|---|---|---|
+| Install uv | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+| Set a variable | `MOCK_LLM=1 DEMO_PAUSE=8 uv run python normal_agent.py` | `$env:MOCK_LLM="1"; $env:DEMO_PAUSE="8"` then `uv run python normal_agent.py` (stays set for that window; unset with `Remove-Item Env:KEY_FROM`) |
+| Kill -9 | `pkill -9 -f normal_agent.py` | `Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%normal_agent.py%'" \| ForEach-Object { Stop-Process -Id $_.ProcessId -Force }` or `taskkill /F /PID <pid>` |
+| POST to the shop | `curl -X POST http://127.0.0.1:8099/mode -d '{"pending": true}'` | `Invoke-RestMethod -Method Post http://127.0.0.1:8099/mode -Body '{"pending": true}'` |
+| Delete the checkpoints | `rm -f durable.db` | `Remove-Item durable.db` |
+
+The `docker` and `uv run python … <command>` lines are the same on both.
+
+## Troubleshooting
+
+| You see | Do this |
+|---|---|
+| `can't reach the shop at http://127.0.0.1:8099` | start `uv run python shop_mock.py` and leave it running |
+| `[shop] can't use port 8099` (or `WinError 10013`) | close the other shop, or `PORT=8199` for the shop and `SHOP_URL=http://127.0.0.1:8199` for the agent |
+| `order-1 already finished · nothing to do` | `durable.db` remembers it; dashboard reset doesn't clear it. Delete `durable.db` or use `ORDER_ID=order-2` |
+| the durable agent paid twice | `KEY_FROM=node` is still set (PowerShell keeps it: `Remove-Item Env:KEY_FROM`), or the shop restarted between the runs |
+| `LLM_API_KEY is not set` | add `MOCK_LLM=1`, or set your key |
+| `can't reach the Temporal server` | `docker compose --profile temporal up -d temporal`, wait 10s |
+| `order-1 is already running` (Temporal) | start a worker so it finishes, or `start order-2` |
+| `database is locked` | another copy is running, or the folder is in OneDrive/Dropbox; clone it somewhere else |
+| `â‚¹` instead of `₹` (Windows) | use Windows Terminal |
+
+The blog posts have a longer "If something goes wrong" section for each part.
+
 ## Tests
 
 ```bash
 uv run pytest -q
 ```
 
-Each kill is a real `SIGKILL` (`CRASH_AT=after_pay`). The Temporal test runs when a server is up on `localhost:7233`, and is skipped otherwise.
+Each kill is a real `SIGKILL` (`CRASH_AT=after_pay`). The Temporal test runs when a server is up on `127.0.0.1:7233`, and is skipped otherwise.
 
 ## Settings
 
@@ -160,7 +192,9 @@ Each kill is a real `SIGKILL` (`CRASH_AT=after_pay`). The Temporal test runs whe
 | `DEMO_PAUSE` | `0` | seconds to wait at each step: your window to kill it |
 | `ORDER` | `4 chai for 98765 43210` | the customer's message |
 | `ORDER_ID` | `order-1` | durable agent: which order (each has its own history) |
-| `SHOP_URL` | `http://localhost:8099` | where the shop runs |
+| `SHOP_URL` | `http://127.0.0.1:8099` | where the shop runs |
+| `PORT` / `HOST` | `8099` / `127.0.0.1` | where the shop listens (compose sets `HOST=0.0.0.0`) |
+| `TEMPORAL_ADDRESS` / `TASK_QUEUE` | `127.0.0.1:7233` / `chai` | the Temporal server and queue |
 | `KEEP_DB` | off | `1` = the shop keeps its ledger across restarts |
 
 ## License

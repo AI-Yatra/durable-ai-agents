@@ -1,7 +1,7 @@
 """Shared bits for every agent: talking to the shop, the LLM, and the demo helpers.
 
 Env vars
-  SHOP_URL     where shop_mock.py runs              (default http://localhost:8099)
+  SHOP_URL     where shop_mock.py runs              (default http://127.0.0.1:8099)
   MOCK_LLM=1   scripted LLM answer, no network      (default: use the real LLM)
   LLM_BASE_URL / LLM_API_KEY / LLM_MODEL   any OpenAI-compatible endpoint
                (default: NVIDIA's free endpoint, https://integrate.api.nvidia.com/v1)
@@ -19,7 +19,13 @@ import time
 import urllib.error
 import urllib.request
 
-SHOP_URL = os.environ.get("SHOP_URL", "http://localhost:8099")
+# ₹, ▶ and ⏸ in our output: don't crash on a Windows console or pipe that defaults to cp1252.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
+# 127.0.0.1, not localhost: on Windows "localhost" tries IPv6 (::1) first, and each refused try costs ~2s.
+SHOP_URL = os.environ.get("SHOP_URL", "http://127.0.0.1:8099")
 ORDER = os.environ.get("ORDER", "4 chai for 98765 43210")
 PRICE = 20  # ₹ per chai
 
@@ -41,6 +47,8 @@ def shop(path: str, body: dict | None = None) -> dict:
         if e.code in (404, 409):
             return json.loads(e.read())
         raise
+    except urllib.error.URLError as e:
+        sys.exit(f"can't reach the shop at {SHOP_URL} ({e.reason}). Is `uv run python shop_mock.py` running?")
 
 
 # --- the LLM -------------------------------------------------------------------
@@ -62,12 +70,19 @@ def llm_read_order(text: str) -> dict:
     req = urllib.request.Request(
         base.rstrip("/") + "/chat/completions",
         data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {os.environ['LLM_API_KEY']}"},
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {_api_key()}"},
     )
     with urllib.request.urlopen(req, timeout=60) as r:
         content = json.loads(r.read())["choices"][0]["message"]["content"]
     out = json.loads(re.search(r"\{.*\}", content, re.S).group())
     return {"phone": re.sub(r"\D", "", str(out["phone"])), "qty": int(out["qty"])}
+
+
+def _api_key() -> str:
+    key = os.environ.get("LLM_API_KEY")
+    if not key:
+        sys.exit("LLM_API_KEY is not set. Set it, or run with MOCK_LLM=1 to fake the LLM.")
+    return key
 
 
 # --- demo helpers ------------------------------------------------------------
@@ -81,8 +96,11 @@ def banner(msg: str) -> None:
 
 
 def crash_point(name: str) -> None:
-    """SIGKILL ourselves at a named point. No cleanup, no finally: same as docker kill."""
+    """SIGKILL ourselves at a named point. No cleanup, no finally: same as docker kill.
+
+    Windows has no SIGKILL; os.kill there calls TerminateProcess, which is just as abrupt (exit code 9).
+    """
     if os.environ.get("CRASH_AT") == name:
         say(f"💀 CRASH_AT={name}: SIGKILL")
         sys.stdout.flush()
-        os.kill(os.getpid(), signal.SIGKILL)
+        os.kill(os.getpid(), getattr(signal, "SIGKILL", 9))

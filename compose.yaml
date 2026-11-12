@@ -31,6 +31,7 @@ services:
     command: python shop_mock.py
     environment:
       SHOP_DB: /data/shop.db
+      HOST: 0.0.0.0          # inside a container, listen on all interfaces
     ports: ["8099:8099"]
     volumes:
       - shop:/data
