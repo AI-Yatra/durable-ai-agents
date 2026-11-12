@@ -126,3 +126,14 @@ def test_audit_lists_every_step(shop, run):
     for step in ("read_order", "charge_upi", "check_payment", "check_stock", "send_receipt", "send_to_kitchen"):
         assert step in out, out
     assert "waited for the bank" in out
+
+
+def test_big_order_200_chai_refund_waits_for_admin(shop, run):
+    # the README / blog example: ₹4,000 is above the ₹2,000 auto-refund limit
+    rc, out = run("durable_agent.py", ORDER="200 chai for 98765 43210")
+    assert "waiting for the customer" in out, out  # 200 > 20 in stock
+    rc, out = run("durable_agent.py", "customer", "refund")
+    assert "waiting for the admin" in out, out
+    run("durable_agent.py", "admin", "approve")
+    s = shop("/stats")
+    assert (s["payments"], s["refunds"]) == (1, 1)

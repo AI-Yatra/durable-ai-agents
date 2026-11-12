@@ -10,9 +10,9 @@ A customer sends *"4 chai for 98765 43210"*. The agent reads the order with an L
 
 Code for the **Durable AI Agents** talk at AI Yatra (14 Nov 2026) and its three blog posts:
 
-1. Build the chai agent, then crash it *(link coming)*
-2. Make it durable *(link coming)*
-3. Run it on Temporal *(link coming)*
+1. [Build a chai agent, then kill it](https://aiyatra.io/blog/beyond-the-harness-part-1-persistent-is-not-durable)
+2. [Make the chai agent survive kill -9](https://aiyatra.io/blog/beyond-the-harness-part-2-four-guarantees-tested-with-kill-9-in-langgraph)
+3. [The chai agent on Temporal](https://aiyatra.io/blog/beyond-the-harness-part-3-the-chai-agent-on-temporal)
 
 ## What's inside
 
@@ -173,7 +173,7 @@ The `docker` and `uv run python … <command>` lines are the same on both.
 | `database is locked` | another copy is running, or the folder is in OneDrive/Dropbox; clone it somewhere else |
 | `â‚¹` instead of `₹` (Windows) | use Windows Terminal |
 
-The blog posts have a longer "If something goes wrong" section for each part.
+The [blog posts](#durable-ai-agents) have a longer "If something goes wrong" section for each part.
 
 ## Tests
 

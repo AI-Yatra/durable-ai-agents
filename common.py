@@ -57,7 +57,7 @@ def llm_read_order(text: str) -> dict:
     say(f"LLM call: read_order({text!r})")
     if os.environ.get("MOCK_LLM") == "1":
         phone = re.sub(r"\D", "", re.search(r"[\d ]{10,}", text).group())
-        qty = int(re.search(r"\b(\d{1,2})\b", text).group(1))
+        qty = int(re.search(r"\b(\d{1,3})\b", text).group(1))  # 1-3 digits: the phone groups are longer
         return {"phone": phone, "qty": qty}
 
     base = os.environ.get("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
