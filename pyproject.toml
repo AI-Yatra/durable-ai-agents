@@ -1,0 +1,16 @@
+[project]
+name = "durable-ai-agents"
+version = "0.1.0"
+description = "Nov 14 durable agents demo: a chai ordering agent that survives docker kill"
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph>=1.0",
+    "langgraph-checkpoint-sqlite>=3.0",
+    "temporalio>=1.18",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

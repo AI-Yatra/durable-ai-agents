@@ -1,0 +1,81 @@
+# The Nov 14 stage. Everything runs locally and offline (MOCK_LLM=1 by default).
+#
+#   docker compose up -d shop                            # dashboard: http://localhost:8099
+#   docker compose up chai-agent                         # the normal agent; from another terminal: docker kill chai-agent
+#   docker start -a chai-agent                           # restart it and watch what happens
+#   AGENT=durable_agent docker compose up chai-agent     # the durable agent, same kill
+#
+# Temporal:
+#   docker compose --profile temporal up -d temporal worker-1 worker-2   # UI: http://localhost:8233
+#   docker compose run --rm chai-agent python temporal_agent.py start
+#   docker kill worker-1    # while it shows "charged ₹80 · Ns to kill me"
+
+x-agent: &agent
+  build: .
+  environment:
+    SHOP_URL: http://shop:8099
+    CHECKPOINT_DIR: /data
+    TEMPORAL_ADDRESS: temporal:7233
+    MOCK_LLM: ${MOCK_LLM:-1}
+    LLM_API_KEY: ${LLM_API_KEY:-}
+    LLM_MODEL: ${LLM_MODEL:-meta/llama-3.1-8b-instruct}
+    DEMO_PAUSE: ${DEMO_PAUSE:-8}
+    KEY_FROM: ${KEY_FROM:-}
+  volumes:
+    - checkpoints:/data
+  depends_on: [shop]
+
+services:
+  shop:
+    build: .
+    command: python shop_mock.py
+    environment:
+      SHOP_DB: /data/shop.db
+    ports: ["8099:8099"]
+    volumes:
+      - shop:/data
+
+  chai-agent:
+    <<: *agent
+    container_name: chai-agent
+    command: python ${AGENT:-normal_agent}.py
+
+  temporal:
+    image: temporalio/temporal:1.10.0
+    profiles: [temporal]
+    command: server start-dev --ip 0.0.0.0
+    ports: ["7233:7233", "8233:8233"]
+
+  worker-1:
+    <<: *agent
+    profiles: [temporal]
+    container_name: worker-1
+    command: python temporal_agent.py worker
+    environment:
+      SHOP_URL: http://shop:8099
+      TEMPORAL_ADDRESS: temporal:7233
+      MOCK_LLM: ${MOCK_LLM:-1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      DEMO_PAUSE: ${DEMO_PAUSE:-8}
+      WORKER_NAME: worker-1
+    volumes: []
+    depends_on: [shop, temporal]
+
+  worker-2:
+    <<: *agent
+    profiles: [temporal]
+    container_name: worker-2
+    command: python temporal_agent.py worker
+    environment:
+      SHOP_URL: http://shop:8099
+      TEMPORAL_ADDRESS: temporal:7233
+      MOCK_LLM: ${MOCK_LLM:-1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      DEMO_PAUSE: ${DEMO_PAUSE:-8}
+      WORKER_NAME: worker-2
+    volumes: []
+    depends_on: [shop, temporal]
+
+volumes:
+  shop:
+  checkpoints:
