@@ -14,6 +14,8 @@ Code for the **Durable AI Agents** talk at AI Yatra (14 Nov 2026) and its three 
 2. [Make the chai agent survive kill -9](https://aiyatra.io/blog/beyond-the-harness-part-2-four-guarantees-tested-with-kill-9-in-langgraph)
 3. [The chai agent on Temporal](https://aiyatra.io/blog/beyond-the-harness-part-3-the-chai-agent-on-temporal)
 
+**Hackathon:** [100 problem statements](hackathon/README.md). Pick one, build an agent for it, and show it surviving a `kill -9`.
+
 ## What's inside
 
 | File | What it is |
@@ -23,6 +25,7 @@ Code for the **Durable AI Agents** talk at AI Yatra (14 Nov 2026) and its three 
 | [`temporal_agent.py`](temporal_agent.py) | The same agent as a Temporal workflow, run by two workers. |
 | [`shop_mock.py`](shop_mock.py) | The outside world: a UPI bank, an SMS gateway and a kitchen, with a live dashboard. |
 | [`common.py`](common.py) | The LLM call and small helpers. |
+| [`hackathon/`](hackathon/README.md) | The 100 hackathon problems (also as [CSV](hackathon/problems.csv)). |
 | [`tests/`](tests) | Every crash is a real `SIGKILL`, checked by counting payments. |
 
 ```
@@ -48,7 +51,7 @@ read_order ──> charge_upi(₹80) ──> send_receipt ──> send_to_kitche
 - An LLM is optional. `MOCK_LLM=1` fakes it. For a real one, set `LLM_API_KEY`. Any OpenAI-compatible endpoint works; the default is [NVIDIA's free one](https://build.nvidia.com).
 
 ```bash
-git clone https://github.com/been-there-done-that/durable-ai-agents
+git clone https://github.com/AI-Yatra/durable-ai-agents
 cd durable-ai-agents
 uv sync
 ```
