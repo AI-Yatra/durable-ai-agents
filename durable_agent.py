@@ -25,6 +25,7 @@
     python durable_agent.py admin approve|reject    for refunds above the limit
     python durable_agent.py stock 0                 the chai runs out
     python durable_agent.py audit                   every step this order took
+    python durable_agent.py graph                   save a picture of the graph (durable_agent_graph.png)
 
 ORDER_ID picks the order (default order-1): a new id is a new order with its own saved history.
 """
@@ -41,7 +42,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
-from common import ORDER, PRICE, banner, crash_point, llm_read_order, say, shop
+from common import ORDER, PRICE, banner, crash_point, llm_read_order, say, shop, show_graph
 
 ORDER_ID = os.environ.get("ORDER_ID", "order-1")
 CHECKPOINTS = os.path.join(os.environ.get("CHECKPOINT_DIR", "."), "durable.db")
@@ -77,7 +78,7 @@ def charge_upi(state: State) -> dict:
     if os.environ.get("KEY_FROM") == "node":
         key = f"{ORDER_ID}:{uuid.uuid4().hex[:8]}"  # the trap: a new key every time this step re-runs
     banner(f"about to charge ₹{amount} · key {key}")
-    r = shop("/pay", {"order_id": ORDER_ID, "amount": amount, "key": key})
+    r = shop("/pay", {"order_id": ORDER_ID, "phone": state["phone"], "amount": amount, "key": key})
     say(f"charge_upi: ₹{amount} -> {r['receipt']} ({r['status']})" + ("  · bank: same key, not charged again" if r["duplicate"] else ""))
     crash_point("after_pay")
     banner(f"charged ₹{amount} · moving on")
@@ -150,10 +151,13 @@ def build(checkpointer):
     g.add_edge(START, "read_order")
     g.add_edge("read_order", "charge_upi")
     g.add_edge("charge_upi", "check_payment")
-    g.add_conditional_edges("check_payment", lambda s: {"reversed": "tell_customer"}.get(s["payment"], "check_stock"))
+
+    g.add_conditional_edges("check_payment", lambda s: {"reversed": "tell_customer"}.get(s["payment"], "check_stock"), ["tell_customer", "check_stock"])
     g.add_edge("tell_customer", END)
-    g.add_conditional_edges("check_stock", lambda s: "send_receipt" if s["in_stock"] else "ask_customer")
-    g.add_conditional_edges("ask_customer", lambda s: {"wait": "check_stock", "coffee": "send_receipt"}.get(s["choice"], "refund"))
+
+    g.add_conditional_edges("check_stock", lambda s: "send_receipt" if s["in_stock"] else "ask_customer", ["send_receipt", "ask_customer"])
+    g.add_conditional_edges("ask_customer", lambda s: {"wait": "check_stock", "coffee": "send_receipt"}.get(s["choice"], "refund"), ["check_stock", "send_receipt", "refund"])
+
     g.add_edge("send_receipt", "send_to_kitchen")
     g.add_edge("send_to_kitchen", END)
     g.add_edge("refund", END)
@@ -202,6 +206,9 @@ def report(graph, config):
 
 
 def main(argv):
+    if argv == ["graph"]:  # only draws the graph: no saved runs needed, so no durable.db
+        return show_graph("durable_agent_graph", build(None).get_graph().draw_mermaid())
+
     graph = build(saver())
     config = {"configurable": {"thread_id": ORDER_ID}}
     cmd = argv[0] if argv else "run"

@@ -18,6 +18,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import webbrowser
+from pathlib import Path
 
 # ₹, ▶ and ⏸ in our output: don't crash on a Windows console or pipe that defaults to cp1252.
 for _stream in (sys.stdout, sys.stderr):
@@ -93,6 +95,19 @@ def banner(msg: str) -> None:
     for left in range(int(pause), 0, -1):
         print(f"    {left}…", flush=True)
         time.sleep(1)
+
+
+def show_graph(name: str, mermaid: str) -> None:
+    """Save a Mermaid diagram as <name>.png and open it. Used by `python <agent>.py graph`.
+
+    The picture is drawn by the mermaid.ink website (LangGraph's default), so this needs internet.
+    """
+    from langchain_core.runnables.graph_mermaid import draw_mermaid_png
+
+    image = Path(f"{name}.png").resolve()
+    draw_mermaid_png(mermaid, output_file_path=str(image))
+    say(f"graph saved to {image}")
+    webbrowser.open(image.as_uri())
 
 
 def crash_point(name: str) -> None:
