@@ -248,14 +248,20 @@ async def worker(name: str):
 
 async def report(handle: WorkflowHandle):
     """Wait until the order is finished or is waiting for somebody, then say which."""
+    no_worker_since, hinted = None, False
     while True:
         if (await handle.describe()).status != WorkflowExecutionStatus.RUNNING:
             v = await handle.result()
             return say(f"done · payment {v.get('payment')} · kitchen {v.get('kitchen', '-')} · refund {v.get('refund', '-')} · payments made {shop('/stats')['payments']}")
         try:
             waiting = await handle.query(ChaiOrder.waiting, rpc_timeout=timedelta(seconds=2))
+            no_worker_since = None
         except RPCError:
             waiting = None  # no worker is up to answer right now; the order is safe on the server
+            no_worker_since = no_worker_since or asyncio.get_running_loop().time()
+            if not hinted and asyncio.get_running_loop().time() - no_worker_since > 5:
+                hinted = True
+                say(f"no worker is answering. The order is safe on the server; start one: python temporal_agent.py worker worker-1  (queue '{QUEUE}')")
         if waiting:
             who = waiting["waiting_for"]
             return say(f"⏸ paused · waiting for the {who} · saved on the Temporal server · next: python temporal_agent.py {HINTS[who]} {handle.id}")

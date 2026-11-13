@@ -19,7 +19,7 @@ from common import PRICE, banner, crash_point, llm_read_order, say, shop, show_g
 # Which order this run is working on. Running the same order again is the bug
 # we want to show (the customer pays twice); a new order needs a new id:
 #     ORDER_ID=order-2 python normal_agent.py
-ORDER_ID = os.environ.get("ORDER_ID", "order-2")
+ORDER_ID = os.environ.get("ORDER_ID", "order-1")
 
 
 # Everything the agent knows about one order. Each step reads what it needs
