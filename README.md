@@ -14,6 +14,8 @@ Code for the **Durable AI Agents** talk at AI Yatra (14 Nov 2026) and its three 
 2. [Make the chai agent survive kill -9](https://aiyatra.io/blog/beyond-the-harness-part-2-four-guarantees-tested-with-kill-9-in-langgraph)
 3. [The chai agent on Temporal](https://aiyatra.io/blog/beyond-the-harness-part-3-the-chai-agent-on-temporal)
 
+**Hackathon:** [100 problem statements](hackathon/README.md). Pick one, build an agent for it, and show it surviving a `kill -9`.
+
 ## What's inside
 
 | File | What it is |
@@ -23,6 +25,7 @@ Code for the **Durable AI Agents** talk at AI Yatra (14 Nov 2026) and its three 
 | [`temporal_agent.py`](temporal_agent.py) | The same agent as a Temporal workflow, run by two workers. |
 | [`shop_mock.py`](shop_mock.py) | The outside world: a UPI bank, an SMS gateway and a kitchen, with a live dashboard. |
 | [`common.py`](common.py) | The LLM call and small helpers. |
+| [`hackathon/`](hackathon/README.md) | The 100 hackathon problems (also as [CSV](hackathon/problems.csv)). |
 | [`tests/`](tests) | Every crash is a real `SIGKILL`, checked by counting payments. |
 
 ```
@@ -48,7 +51,7 @@ read_order ──> charge_upi(₹80) ──> send_receipt ──> send_to_kitche
 - An LLM is optional. `MOCK_LLM=1` fakes it. For a real one, set `LLM_API_KEY`. Any OpenAI-compatible endpoint works; the default is [NVIDIA's free one](https://build.nvidia.com).
 
 ```bash
-git clone https://github.com/been-there-done-that/durable-ai-agents
+git clone https://github.com/AI-Yatra/durable-ai-agents
 cd durable-ai-agents
 uv sync
 ```
@@ -68,6 +71,12 @@ MOCK_LLM=1 DEMO_PAUSE=8 uv run python normal_agent.py        # terminal 2 again
 The dashboard shows **payments made 2**, both rows in red.
 
 Each agent can draw itself: `uv run python normal_agent.py graph` saves `normal_agent_graph.png` and opens it, without running the order. `durable_agent.py graph` and `temporal_agent.py graph` do the same (`durable_agent_graph.png`, `temporal_agent_graph.png`). Needs internet: the picture is rendered by mermaid.ink.
+
+| normal agent | durable agent | Temporal workflow |
+|---|---|---|
+| ![normal agent graph](docs/graph-normal.webp) | ![durable agent graph](docs/graph-durable.webp) | ![Temporal workflow graph](docs/graph-temporal.webp) |
+
+The Temporal one is drawn by hand (`WORKFLOW_GRAPH` in `temporal_agent.py`): a workflow is plain Python, with no graph object to draw.
 
 ## 2 · The durable agent pays once
 
@@ -203,6 +212,10 @@ The `docker` and `uv run python … <command>` lines are the same on both.
 | `LLM_API_KEY is not set` | add `MOCK_LLM=1`, or set your key |
 | `can't reach the Temporal server` | `docker compose --profile temporal up -d temporal`, wait 10s |
 | `order-1 is already running` (Temporal) | start a worker so it finishes, or `start order-2` |
+| `no worker is answering` (Temporal `start`) | start `temporal_agent.py worker worker-1`, on the same `TASK_QUEUE`; the order waits on the server |
+| `nobody is waiting for the customer right now` | the order is at another step (the last `⏸ paused` line says which) or done: check with `audit` |
+| `can't ask order-2 who it is waiting for` | no worker is running, or there is no such order |
+| a Temporal order fails with "nondeterminism" | it was started by older code; terminate it in the UI (or restart `temporal server start-dev`) and use a new id |
 | `database is locked` | another copy is running, or the folder is in OneDrive/Dropbox; clone it somewhere else |
 | `â‚¹` instead of `₹` (Windows) | use Windows Terminal |
 
