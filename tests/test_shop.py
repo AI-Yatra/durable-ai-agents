@@ -28,3 +28,14 @@ def test_refund_once(shop):
     shop("/refund", {"receipt": r["receipt"], "key": "rk"})
     shop("/refund", {"receipt": r["receipt"], "key": "rk"})
     assert shop("/stats")["refunds"] == 1
+
+
+def test_double_charge_is_per_order_and_customer(shop):
+    pay = lambda order, phone: shop("/pay", {"order_id": order, "phone": phone, "amount": 80})
+    pay("o1", "111")
+    pay("o1", "222")  # same order id, another customer: not a double charge
+    pay("o2", "111")  # same customer, another order: not a double charge
+    assert not [e for e in shop("/stats")["events"] if e["kind"] == "bad"]
+    pay("o1", "111")  # same order, same customer, paid again
+    bad = [e["text"] for e in shop("/stats")["events"] if e["kind"] == "bad"]
+    assert len(bad) == 1 and "o1 (111) is now paid 2×" in bad[0]
