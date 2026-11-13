@@ -69,6 +69,12 @@ The dashboard shows **payments made 2**, both rows in red.
 
 Each agent can draw itself: `uv run python normal_agent.py graph` saves `normal_agent_graph.png` and opens it, without running the order. `durable_agent.py graph` and `temporal_agent.py graph` do the same (`durable_agent_graph.png`, `temporal_agent_graph.png`). Needs internet: the picture is rendered by mermaid.ink.
 
+| normal agent | durable agent | Temporal workflow |
+|---|---|---|
+| ![normal agent graph](docs/graph-normal.webp) | ![durable agent graph](docs/graph-durable.webp) | ![Temporal workflow graph](docs/graph-temporal.webp) |
+
+The Temporal one is drawn by hand (`WORKFLOW_GRAPH` in `temporal_agent.py`): a workflow is plain Python, with no graph object to draw.
+
 ## 2 · The durable agent pays once
 
 Click **reset** on the dashboard, then:
@@ -203,6 +209,10 @@ The `docker` and `uv run python … <command>` lines are the same on both.
 | `LLM_API_KEY is not set` | add `MOCK_LLM=1`, or set your key |
 | `can't reach the Temporal server` | `docker compose --profile temporal up -d temporal`, wait 10s |
 | `order-1 is already running` (Temporal) | start a worker so it finishes, or `start order-2` |
+| `no worker is answering` (Temporal `start`) | start `temporal_agent.py worker worker-1`, on the same `TASK_QUEUE`; the order waits on the server |
+| `nobody is waiting for the customer right now` | the order is at another step (the last `⏸ paused` line says which) or done: check with `audit` |
+| `can't ask order-2 who it is waiting for` | no worker is running, or there is no such order |
+| a Temporal order fails with "nondeterminism" | it was started by older code; terminate it in the UI (or restart `temporal server start-dev`) and use a new id |
 | `database is locked` | another copy is running, or the folder is in OneDrive/Dropbox; clone it somewhere else |
 | `â‚¹` instead of `₹` (Windows) | use Windows Terminal |
 
