@@ -67,6 +67,8 @@ MOCK_LLM=1 DEMO_PAUSE=8 uv run python normal_agent.py        # terminal 2 again
 
 The dashboard shows **payments made 2**, both rows in red.
 
+Each agent can draw itself: `uv run python normal_agent.py graph` saves `normal_agent_graph.png` and opens it, without running the order. `durable_agent.py graph` and `temporal_agent.py graph` do the same (`durable_agent_graph.png`, `temporal_agent_graph.png`). Needs internet: the picture is rendered by mermaid.ink.
+
 ## 2 · The durable agent pays once
 
 Click **reset** on the dashboard, then:
@@ -123,6 +125,37 @@ pkill -9 -f "worker worker-1"      # whichever worker printed "charged ₹80 · 
 ```
 
 Within about 3 seconds the other worker picks the order up and finishes it, paying once. Without Docker, install the [Temporal CLI](https://docs.temporal.io/cli) and run `temporal server start-dev`.
+
+### The same waits, on Temporal
+
+The Temporal agent has the same steps and the same branches as the durable agent, so the two can be compared like for like. Keep a worker running, then:
+
+```bash
+curl -X POST http://127.0.0.1:8099/mode -d '{"pending": true}'   # the bank leaves payments pending
+MOCK_LLM=1 uv run python temporal_agent.py start order-2     # ⏸ waiting for the bank (returns; the wait lives on the server)
+uv run python temporal_agent.py stock 0                      # the chai runs out meanwhile
+uv run python temporal_agent.py bank success order-2         # → sold out → ⏸ waiting for the customer
+uv run python temporal_agent.py customer refund order-2      # or wait / coffee / no-reply
+uv run python temporal_agent.py audit order-2
+```
+
+```
+Fri 14:57:15  read_order       {"phone": "9876543210", "qty": 4}
+Fri 14:57:15  charge_upi       "rcpt-1"
+Fri 14:57:15  check_payment    "pending"
+Fri 14:57:40  ⏸ bank           answered success
+Fri 14:57:40  check_payment    "success"
+Fri 14:57:40  check_stock      false
+Fri 14:57:40  ask_customer
+Fri 14:58:05  ⏸ customer       answered refund
+Fri 14:58:05  refund           "rf-1"
+```
+
+What is different from the durable agent:
+
+- Nobody re-runs a script after a crash: any live worker carries on.
+- If the customer never replies, the order refunds itself after `CUSTOMER_TIMEOUT` seconds (default 2 hours). The durable agent needs someone to run `customer no-reply`.
+- Still our job on both: every step sends a key, so a step that runs twice only acts once.
 
 ## Everything in Docker
 
@@ -190,8 +223,8 @@ Each kill is a real `SIGKILL` (`CRASH_AT=after_pay`). The Temporal test runs whe
 | `MOCK_LLM` | off | `1` = scripted LLM, no network |
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | NVIDIA, `meta/llama-3.1-8b-instruct` | any OpenAI-compatible endpoint |
 | `DEMO_PAUSE` | `0` | seconds to wait at each step: your window to kill it |
-| `ORDER` | `4 chai for 98765 43210` | the customer's message |
-| `ORDER_ID` | `order-1` | durable agent: which order (each has its own history) |
+| `ORDER` | `4 chai for 98765 43210` | durable and Temporal agents: the customer's message (the normal agent has it written in its code) |
+| `ORDER_ID` | `order-1` | normal and durable agents: which order. A new id is a new order; the same id again is the same order (the durable agent also keeps its saved history per id) |
 | `SHOP_URL` | `http://127.0.0.1:8099` | where the shop runs |
 | `PORT` / `HOST` | `8099` / `127.0.0.1` | where the shop listens (compose sets `HOST=0.0.0.0`) |
 | `TEMPORAL_ADDRESS` / `TASK_QUEUE` | `127.0.0.1:7233` / `chai` | the Temporal server and queue |
